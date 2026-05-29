@@ -1,0 +1,16 @@
+# 빌드 산출물 (저작권 문제로 공개 불가)
+practice/questions.json
+aws-saa-c03.pdf
+aws-saa-solution.txt
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# 로그
+practice/build.log
+build.log
+
+# macOS
+.DS_Store
