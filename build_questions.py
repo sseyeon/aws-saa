@@ -136,14 +136,21 @@ def _parse_q_body(num: int, body: str) -> dict | None:
 
 def parse_solution_txt(text: str, pdf_qs: dict | None = None) -> dict[int, dict]:
     """Returns {num: {answer, explanation}}"""
-    blocks = re.split(r"-{3,}", text)
+    # Split by dashes first, then further split blocks that contain multiple N] or N. entries
+    raw_blocks = re.split(r"-{3,}", text)
+    blocks = []
+    for raw in raw_blocks:
+        # Sub-split on lines that start a new question: "37] " or "180.A" or "IMP>>>184."
+        sub = re.split(r"(?m)(?=^(?:IMP[>*\s]{0,15})?\d{1,3}[\].][A-Z\s])", raw)
+        blocks.extend(sub)
+
     solutions = {}
 
     for block in blocks:
         block = block.strip()
         if not block:
             continue
-        num_m = re.match(r"^(\d+)\]", block)
+        num_m = re.match(r"^(?:IMP[>*\s]{0,15})?(\d+)[\].]", block)
         if not num_m:
             continue
         num = int(num_m.group(1))
@@ -184,7 +191,6 @@ def _extract_answer_letter(block: str, pdf_options: dict | None = None) -> str |
         ans_text = ans_m.group(1).strip().lower()[:80]
         best_letter, best_score = None, 0
         for letter, opt_text in pdf_options.items():
-            # Overlap: count shared words
             a_words = set(ans_text.split())
             b_words = set(opt_text.lower().split())
             score = len(a_words & b_words)
@@ -192,6 +198,23 @@ def _extract_answer_letter(block: str, pdf_options: dict | None = None) -> str |
                 best_score, best_letter = score, letter
         if best_score >= 2:
             return best_letter
+
+    # Strategy 5: no ans-, no letter prefix → fuzzy match first paragraph after question
+    if pdf_options:
+        question_end = _find_question_end(block)
+        post_q = block[question_end:]
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", post_q) if p.strip()]
+        if paragraphs:
+            cand_text = paragraphs[0].lower()[:120]
+            best_letter, best_score = None, 0
+            for letter, opt_text in pdf_options.items():
+                a_words = set(cand_text.split())
+                b_words = set(opt_text.lower().split())
+                score = len(a_words & b_words)
+                if score > best_score:
+                    best_score, best_letter = score, letter
+            if best_score >= 3:
+                return best_letter
 
     return None
 
@@ -205,13 +228,33 @@ def _find_question_end(block: str) -> int:
 
 
 def _extract_explanation(block: str) -> str:
-    # Everything after "ans-" line
+    # Case 1: "ans-" present → skip the ans- line itself, rest is explanation
     ans_idx = block.lower().find("ans-")
     if ans_idx >= 0:
         raw = block[ans_idx + 4:].strip()
-        # Remove leading answer letter like "A. text" first line
-        raw = re.sub(r"^[A-E]\.\s+", "", raw, count=1)
-        return raw[:2000].strip()
+        # Skip first line (the answer text)
+        lines = raw.splitlines()
+        rest = "\n".join(lines[1:]).strip() if len(lines) > 1 else ""
+        return rest[:2000].strip()
+
+    # Case 2: no "ans-" → answer line is "A. text" or "  B text" after question
+    question_end = _find_question_end(block)
+    post_q = block[question_end:]
+    lines = post_q.splitlines()
+    for i, line in enumerate(lines):
+        if re.match(r"^\s*[A-E][\.\s]\s*\S", line):
+            # Everything after this answer line is the explanation
+            rest = "\n".join(lines[i + 1:]).strip()
+            return rest[:2000].strip()
+
+    # Case 3: answer is a full sentence (no letter prefix) — skip first paragraph, rest is explanation
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", post_q) if p.strip()]
+    if len(paragraphs) >= 2:
+        return "\n\n".join(paragraphs[1:])[:2000].strip()
+    elif len(paragraphs) == 1:
+        # only one paragraph — treat it all as explanation
+        return paragraphs[0][:2000].strip()
+
     return ""
 
 
