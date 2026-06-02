@@ -26,6 +26,12 @@ Gemini 와 [gagaeun님의 AWS SAA TIL 블로그](https://velog.io/@gagaeun/serie
 
 ## 🖥️ 한글 모의고사 시뮬레이터
 
+![메인](docs/screenshot-main.png)
+
+![문제](docs/screenshot-question.png)
+
+![해설](docs/screenshot-result.png)
+
 기출 684문제를 한글로 번역하여 로컬에서 풀어볼 수 있는 웹 시뮬레이터입니다.
 
 ### 주요 기능
@@ -108,3 +114,10 @@ bash start.sh
 
 - 문제: [AWS SAA-C03 Exam Dump (GitHub)](https://github.com/Iamrushabhshahh/AWS-Certified-Solutions-Architect-Associate-SAA-C03-Exam-Dump-With-Solution)
 - 번역: [deep-translator](https://github.com/nidhaloff/deep-translator) (Google Translate 무료 API)
+
+### ⚠️ 주의사항
+
+- 본 프로젝트는 **개인 학습 목적**으로만 제작되었습니다.
+- 시험 문제의 저작권은 AWS 및 원 출처에 있으며, 상업적 이용 시 문제가 될 수 있습니다.
+- Google Translate 무료 API는 상업적 사용이 허용되지 않습니다.
+- **공개 서비스 배포는 저작권 및 API 이용약관 위반의 소지가 있으니 개인 로컬 환경에서만 사용하세요.**
