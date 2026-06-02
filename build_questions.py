@@ -276,16 +276,28 @@ def make_translator():
     return GoogleTranslator(source="en", target="ko")
 
 
-def translate(translator, text: str) -> str:
+def translate(translator, text: str, retries: int = 3) -> str:
     if not text or not text.strip():
         return text
+    import requests as _req
+    _orig_get = _req.get
+    def _get_with_timeout(*a, **kw):
+        kw.setdefault('timeout', 15)
+        return _orig_get(*a, **kw)
+    _req.get = _get_with_timeout
     try:
-        result = translator.translate(text[:4900])
-        time.sleep(TRANSLATE_DELAY)
-        return result
-    except Exception as e:
-        print(f"\n  [warn] translation failed: {e}")
-        return text
+        for attempt in range(retries):
+            try:
+                result = translator.translate(text[:4900])
+                time.sleep(TRANSLATE_DELAY)
+                return result
+            except Exception as e:
+                print(f"\n  [warn] attempt {attempt+1}/{retries} failed: {e}")
+                if attempt < retries - 1:
+                    time.sleep(2 ** attempt)  # 1s, 2s 백오프
+        return text  # 모두 실패 시 원문 반환
+    finally:
+        _req.get = _orig_get
 
 
 SEP = "\n||||\n"  # separator for batched translation
@@ -339,6 +351,17 @@ def main():
     solutions = parse_solution_txt(txt_text, pdf_qs)
     print(f"  Found {len(solutions)} solutions")
 
+    # Load answer overrides
+    overrides = {}
+    override_path = Path("answer_overrides.json")
+    if override_path.exists():
+        try:
+            raw = json.loads(override_path.read_text(encoding="utf-8"))
+            overrides = {int(k): v for k, v in raw.items() if v.get("answer") or v.get("explanation")}
+            print(f"  Loaded {len(overrides)} answer overrides")
+        except Exception as e:
+            print(f"  [warn] Failed to load overrides: {e}")
+
     # Merge
     print("\n[4/5] Merging questions + answers...")
     merged = []
@@ -347,13 +370,19 @@ def main():
         q = pdf_qs[num]
         sol = solutions.get(num, {})
         options_text = " ".join(q["options"].values())
+        override = overrides.get(num, {})
+        answer = override.get("answer") or sol.get("answer", "")
+        override_exp = override.get("explanation", "")
+        explanation = override_exp or sol.get("explanation", "")
         entry = {
             "id": num,
             "topic": detect_topic(q["question"], options_text),
             "question": q["question"],
             "options": q["options"],
-            "answer": sol.get("answer", ""),
-            "explanation": sol.get("explanation", ""),
+            "answer": answer,
+            "explanation": explanation,
+            # override 해설은 이미 한글 → 번역 불필요
+            "explanation_ko_override": override_exp,
             "multi_answer": q["multi_answer"],
         }
         if not entry["answer"]:
@@ -386,7 +415,16 @@ def main():
     for i, q in enumerate(merged):
         qid = q["id"]
         if qid in existing:
-            result.append(existing[qid])
+            # 번역은 재사용하되 answer/explanation은 최신 값으로 갱신
+            cached = existing[qid]
+            cached["answer"] = q["answer"]
+            cached["explanation"] = q["explanation"]
+            # override 해설은 이미 한글이므로 바로 사용, 아니면 기존 번역 유지
+            if q.get("explanation_ko_override"):
+                cached["explanation_ko"] = q["explanation_ko_override"]
+            elif q["explanation"] and not (cached.get("explanation_ko") or "").strip():
+                cached["explanation_ko"] = translate(translator, q["explanation"][:1500])
+            result.append(cached)
             continue
 
         sys.stdout.write(f"  Q{qid} ({i+1}/{len(merged)})... ")
@@ -408,6 +446,7 @@ def main():
 def _save(questions, merged_meta):
     topics = {}
     for q in questions:
+        q.pop("explanation_ko_override", None)  # 임시 필드 제거
         t = q.get("topic", "기타")
         topics.setdefault(t, []).append(q["id"])
 

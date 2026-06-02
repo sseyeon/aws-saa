@@ -64,6 +64,23 @@ bash start.sh
 
 > **첫 빌드 소요 시간**: 약 25~35분 (Google Translate 무료 API, 10문제마다 체크포인트 저장 → 중단해도 이어서 진행)
 
+### 정답/해설 수정 (answer_overrides.json)
+
+파싱 오류나 오답이 있는 문제는 `answer_overrides.json`에서 직접 수정할 수 있습니다.
+
+```json
+{
+  "1": {
+    "answer": "AB",
+    "explanation": "정답 이유 설명..."
+  }
+}
+```
+
+- `answer`: 정답 알파벳 (복수 정답은 `"AB"`, `"BCE"` 형식)
+- `explanation`: 한글 해설 (작성 시 번역 없이 바로 적용)
+- 빌드 시 TXT 파싱 결과보다 이 파일이 우선 적용됩니다
+
 ### 커스텀 문제 업로드
 
 앱 하단 **"문제 업로드"** 버튼으로 직접 만든 JSON 문제를 불러올 수 있습니다. 최소 필드: `id`, `question`, `options`, `answer`

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>전체 문제 답/해설 확인</title>
+<style>
+  body { font-family: sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+  h1 { font-size: 20px; margin-bottom: 16px; }
+  .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  input[type=text] { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 200px; }
+  select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+  .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .card-header { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .qnum { font-weight: 700; font-size: 15px; color: #333; min-width: 40px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #e0e7ff; color: #3730a3; }
+  .badge.multi { background: #fef3c7; color: #b45309; }
+  .badge.no-ans { background: #fee2e2; color: #b91c1c; }
+  .question { font-size: 14px; color: #222; margin-bottom: 12px; line-height: 1.6; }
+  .options { margin-bottom: 12px; }
+  .opt { font-size: 13px; padding: 6px 10px; border-radius: 6px; margin-bottom: 4px; display: flex; gap: 8px; }
+  .opt.correct { background: #dcfce7; }
+  .opt-letter { font-weight: 700; min-width: 20px; }
+  .answer-row { font-size: 13px; font-weight: 700; color: #15803d; margin-bottom: 8px; }
+  .answer-row.no-ans { color: #dc2626; }
+  .exp { font-size: 13px; color: #555; background: #f8fafc; border-left: 3px solid #6366f1; padding: 10px 14px; border-radius: 4px; white-space: pre-wrap; line-height: 1.6; }
+  .no-exp { font-size: 13px; color: #aaa; font-style: italic; }
+  .count { font-size: 13px; color: #666; }
+</style>
+</head>
+<body>
+<h1>전체 문제 답/해설 확인</h1>
+<div class="controls">
+  <input type="text" id="search" placeholder="문제 번호 또는 키워드 검색">
+  <select id="filter">
+    <option value="all">전체</option>
+    <option value="no-ans">정답 없음</option>
+    <option value="no-exp">해설 없음</option>
+    <option value="multi">복수 정답</option>
+  </select>
+  <span class="count" id="count"></span>
+</div>
+<div id="list"></div>
+
+<script>
+let allQs = [];
+
+fetch('questions.json')
+  .then(r => r.json())
+  .then(data => {
+    allQs = data.questions;
+    render();
+  });
+
+function letters(ans) {
+  return ans ? ans.toUpperCase().split('').filter(c => /[A-E]/.test(c)) : [];
+}
+
+function render() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const f = document.getElementById('filter').value;
+
+  let list = allQs.filter(item => {
+    if (f === 'no-ans' && item.answer) return false;
+    if (f === 'no-exp' && item.explanation) return false;
+    if (f === 'multi' && !item.multi_answer) return false;
+    if (q) {
+      const num = String(item.id);
+      const text = (item.question + ' ' + Object.values(item.options).join(' ')).toLowerCase();
+      if (!num.includes(q) && !text.includes(q)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('count').textContent = `${list.length}개`;
+
+  document.getElementById('list').innerHTML = list.map(item => {
+    const ans = letters(item.answer);
+    const hasAns = ans.length > 0;
+    const hasExp = item.explanation && item.explanation.trim();
+
+    const opts = Object.entries(item.options).map(([k, v]) => {
+      const correct = ans.includes(k);
+      const text = (item.options_ko && item.options_ko[k]) || v;
+      return `<div class="opt ${correct ? 'correct' : ''}">
+        <span class="opt-letter">${k}.</span>
+        <span>${text}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="card">
+      <div class="card-header">
+        <span class="qnum">Q${item.id}</span>
+        <span class="badge">${item.topic}</span>
+        ${item.multi_answer ? '<span class="badge multi">복수정답</span>' : ''}
+        ${!hasAns ? '<span class="badge no-ans">정답없음</span>' : ''}
+      </div>
+      <div class="question">${item.question_ko || item.question}</div>
+      <div class="options">${opts}</div>
+      <div class="answer-row ${!hasAns ? 'no-ans' : ''}">
+        정답: ${hasAns ? item.answer : '없음'}
+      </div>
+      ${hasExp
+        ? `<div class="exp">${item.explanation_ko || item.explanation}</div>`
+        : `<div class="no-exp">해설 없음</div>`}
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('filter').addEventListener('change', render);
+</script>
+</body>
+</html>
