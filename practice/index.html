@@ -1095,7 +1095,7 @@ function startMockWithMode(mode) {
   startMockExam();
 }
 
-const PASS = 72;
+const PASS = 69; // 720/1000 scaled ≈ 69% raw
 const KEY_HIST  = 'saa_history';
 const KEY_WRONG = 'saa_wrong';
 const KEY_MOCK  = 'saa_mock_attempts';
@@ -1204,9 +1204,10 @@ function renderHome() {
 
 function scoreStyle(score) {
   if (score === null) return ['score-none', '—'];
-  if (score >= 85) return ['score-good', score + '%'];
-  if (score >= 70) return ['score-mid',  score + '%'];
-  return ['score-bad', score + '%'];
+  const scaled = Math.round(100 + (score / 100) * 900);
+  if (score >= 85) return ['score-good', scaled + '점'];
+  if (score >= 69) return ['score-mid',  scaled + '점'];
+  return ['score-bad', scaled + '점'];
 }
 
 function lastScore(hist, key) {
@@ -1537,14 +1538,15 @@ function finishExam() {
   const total    = qs.length;
   const answered = Object.keys(session.answers).length;
   const score    = total ? Math.round(correct / total * 100) : 0;
+  const scaled   = Math.round(100 + (score / 100) * 900);
   const pass     = score >= PASS;
 
   document.getElementById('res-topic').textContent  = session.name;
-  document.getElementById('res-score').textContent  = score + '%';
+  document.getElementById('res-score').textContent  = `${correct}/${total}문제 (${score}%) · 추정 ${scaled}점`;
   document.getElementById('res-score').className    = 'result-score ' + (pass ? 'pass' : 'fail');
-  document.getElementById('res-verdict').textContent = pass ? '합격 기준 통과' : '불합격';
+  document.getElementById('res-verdict').textContent = pass ? '합격 기준 통과 (720점 이상)' : '불합격 (720점 미만)';
   document.getElementById('res-detail').textContent =
-    `${total}문제 중 ${correct}개 정답 · ${answered}문제 답변`;
+    `${answered}문제 답변 · 합격선 약 720점 (정답률 69%)이상`;
 
   // 도메인별 breakdown (모의고사만)
   const breakdownEl = document.getElementById('domain-breakdown');
@@ -1587,7 +1589,7 @@ function finishExam() {
   const hist = loadHist();
   const k    = session.key === '__all__' ? '__all__' : session.name;
   hist[k] = hist[k] || [];
-  hist[k].push({ date: new Date().toLocaleDateString('ko-KR'), topic: session.name, score, correct, total, pass });
+  hist[k].push({ date: new Date().toLocaleDateString('ko-KR'), topic: session.name, score, scaled, correct, total, pass });
   saveHist(hist);
 
   // 모의고사 상세 기록 저장
@@ -1738,7 +1740,7 @@ function renderStats(attempts) {
     return `<tr style="cursor:${hasDetail ? 'pointer' : 'default'}" onclick="${hasDetail ? `showAttemptReview(${realIdx})` : ''}">
       <td style="color:var(--muted)">${i}</td>
       <td>${a.date}</td>
-      <td style="font-weight:700;color:${a.pass ? 'var(--green)' : 'var(--red)'}">${a.score}%</td>
+      <td style="font-weight:700;color:${a.pass ? 'var(--green)' : 'var(--red)'}">${a.correct}/${a.total} (${a.score}%) · ${a.scaled ?? Math.round(100+(a.score/100)*900)}점</td>
       <td>${dpct('secure')}</td>
       <td>${dpct('resilient')}</td>
       <td>${dpct('performing')}</td>
